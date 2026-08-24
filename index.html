@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+        <title>Breakitt</title>
+        <style>
+            html,body{
+                margin:0;
+                height:100%;
+                background:#141014 url('bg.jpg') center center / contain no-repeat;
+                overflow:hidden;
+                font-family:'Gill Sans','Gill Sans MT',Calibri,'Trebuchet MS',sans-serif;
+                -webkit-user-select:none;
+                user-select:none;
+                touch-action:none;
+            }
+            canvas{display:block;}
+ 
+            #hud{
+                position:fixed;
+                top:0;left:0;right:0;
+                display:flex;
+                justify-content:space-between;
+                align-items:flex-start;
+                padding:18px 22px;
+                pointer-events:none;
+                z-index:10;
+                box-sizing:border-box;
+            }
+            .hud-panel{
+                background:rgba(20,16,20,0.45);
+                backdrop-filter:blur(6px);
+                border:1px solid rgba(255,255,255,0.08);
+                border-radius:14px;
+                padding:10px 18px;
+                color:#f4ede3;
+                box-shadow:0 4px 18px rgba(0,0,0,0.35);
+            }
+            #score-label{
+                font-size:11px;
+                letter-spacing:2px;
+                text-transform:uppercase;
+                opacity:0.6;
+                margin:0 0 2px 0;
+            }
+            #score-value{
+                font-size:28px;
+                font-weight:600;
+                margin:0;
+                line-height:1;
+                font-variant-numeric:tabular-nums;
+            }
+            #combo-panel{
+                text-align:right;
+                transition:transform 0.15s ease, opacity 0.2s ease;
+                opacity:0;
+                transform:scale(0.85);
+            }
+            #combo-panel.show{opacity:1;transform:scale(1);}
+            #combo-panel.pulse{animation:comboPulse 0.28s ease;}
+            @keyframes comboPulse{
+                0%{transform:scale(1.28);}
+                100%{transform:scale(1);}
+            }
+            #combo-label{
+                font-size:11px;
+                letter-spacing:2px;
+                text-transform:uppercase;
+                opacity:0.6;
+                margin:0 0 2px 0;
+            }
+            #combo-value{
+                font-size:24px;
+                font-weight:600;
+                margin:0;
+                color:#ffb37a;
+                line-height:1;
+            }
+            #hint{
+                position:fixed;
+                bottom:22px;
+                left:0;right:0;
+                text-align:center;
+                color:#f4ede3;
+                opacity:0.55;
+                font-size:13px;
+                letter-spacing:1px;
+                pointer-events:none;
+                z-index:10;
+                transition:opacity 0.6s ease;
+            }
+ 
+            .score-popup{
+                position:fixed;
+                z-index:20;
+                pointer-events:none;
+                font-weight:700;
+                color:#fff3e0;
+                text-shadow:0 2px 8px rgba(0,0,0,0.5);
+                transform:translate(-50%,-50%);
+                animation:popupFloat 0.9s ease-out forwards;
+                white-space:nowrap;
+            }
+            @keyframes popupFloat{
+                0%{opacity:0;transform:translate(-50%,-50%) scale(0.6);}
+                15%{opacity:1;transform:translate(-50%,-60%) scale(1.15);}
+                100%{opacity:0;transform:translate(-50%,-140%) scale(1);}
+            }
+ 
+            .dust{
+                position:fixed;
+                z-index:5;
+                pointer-events:none;
+                border-radius:50%;
+                animation:dustPuff 0.65s ease-out forwards;
+            }
+            @keyframes dustPuff{
+                0%{opacity:0.55;transform:translate(-50%,-50%) scale(0.2);}
+                100%{opacity:0;transform:translate(-50%,-50%) scale(2.6);}
+            }
+ 
+            #name-banner{
+                position:fixed;
+                top:90px;
+                left:0;right:0;
+                text-align:center;
+                z-index:9;
+                pointer-events:none;
+            }
+            #name-banner span{
+                display:inline-block;
+                font-size:13px;
+                letter-spacing:3px;
+                text-transform:uppercase;
+                color:#f4ede3;
+                background:rgba(20,16,20,0.4);
+                border:1px solid rgba(255,255,255,0.08);
+                border-radius:20px;
+                padding:6px 16px;
+                opacity:0;
+                transition:opacity 0.4s ease;
+            }
+            #name-banner span.show{opacity:0.85;}
+        </style>
+    </head>
+    <body>
+        <div id="hud">
+            <div class="hud-panel">
+                <p id="score-label">Score</p>
+                <p id="score-value">0</p>
+            </div>
+            <div class="hud-panel" id="combo-panel">
+                <p id="combo-label">Combo</p>
+                <p id="combo-value">x1</p>
+            </div>
+        </div>
+        <div id="name-banner"><span id="name-banner-text"></span></div>
+        <div id="hint">swipe through an item on the shelf to smash it</div>
+ 
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/poly-decomp@0.3.0/build/decomp.min.js"></script>
+        <script>
+        const { Engine, Render, Runner, World, Bodies, Body, Composite, Events, Vector, Common } = Matter;
+        if(window.decomp){ Common.setDecomp(window.decomp); }
+ 
+        const engine=Engine.create();
+        engine.gravity.y=1;
+        let width=window.innerWidth;
+        let height=window.innerHeight;
+ 
+        const render = Render.create({
+            element:document.body,
+            engine:engine,
+            options:{ width:width, height:height, wireframes:false, background:'transparent' }
+        });
+        Render.run(render);
+        const runner=Runner.create();
+        Runner.run(runner,engine);
+ 
+        const floor=Bodies.rectangle(width/2,height+30,width*2,60,{isStatic:true,render:{visible:false}});
+        World.add(engine.world,floor);
+ 
+        function handleResize(){
+            width=window.innerWidth;
+            height=window.innerHeight;
+            render.bounds.max.x=width;
+            render.bounds.max.y=height;
+            render.options.width=width;
+            render.options.height=height;
+            render.canvas.width=width*(render.options.pixelRatio || 1);
+            render.canvas.height=height*(render.options.pixelRatio || 1);
+            render.canvas.style.width=width+'px';
+            render.canvas.style.height=height+'px';
+            Body.setPosition(floor,{x:width/2,y:height+30});
+            repositionAllSlots();
+        }
+        window.addEventListener('resize',handleResize);
+ 
+
+        const audioCtx=new(window.AudioContext || window.webkitAudioContext)();
+ 
+        function playCrunch(mat, strength){
+            const dur = mat.duration;
+            const bufferSize=audioCtx.sampleRate*dur;
+            const buffer=audioCtx.createBuffer(1,bufferSize,audioCtx.sampleRate);
+            const data=buffer.getChannelData(0);
+            for(let i=0;i<bufferSize;i++){
+                data[i]=(Math.random()*2-1)*Math.pow(1-i/bufferSize, mat.decayPow);
+            }
+            const noise=audioCtx.createBufferSource();
+            noise.buffer=buffer;
+            const filter=audioCtx.createBiquadFilter();
+            filter.type='bandpass';
+            filter.frequency.value=mat.freqMin+Math.random()*(mat.freqMax-mat.freqMin);
+            filter.Q.value=mat.q;
+            const gain=audioCtx.createGain();
+            gain.gain.value=Math.min(1,0.4+strength*0.6);
+            noise.connect(filter).connect(gain).connect(audioCtx.destination);
+            noise.start();
+            noise.stop(audioCtx.currentTime+dur);
+ 
+            if(mat.glassTing){
+                const osc=audioCtx.createOscillator();
+                osc.type='sine';
+                osc.frequency.value=mat.freqMax + Math.random()*800;
+                const tGain=audioCtx.createGain();
+                const now=audioCtx.currentTime;
+                tGain.gain.setValueAtTime(0.001,now);
+                tGain.gain.linearRampToValueAtTime(0.25*Math.min(1,0.5+strength*0.5),now+0.01);
+                tGain.gain.exponentialRampToValueAtTime(0.001,now+0.35);
+                osc.connect(tGain).connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now+0.4);
+            }
+        }
+ 
+
+        const OBJECT_TYPES=[
+            {
+                key:'plate', name:'Plate', img:'plate.png', radius:92, weight:28,
+                shardsMin:10, shardsMax:14, density:0.02, restitution:0.15, friction:0.3,
+                shardColor:'#dfe0de', strokeColor:'#c7c7c4', points:75,
+                sound:{freqMin:1300,freqMax:2100,q:0.7,duration:0.25,decayPow:2,glassTing:false}
+            },
+            {
+                key:'bowl', name:'Bowl', img:'bowl.png', radius:70, weight:22,
+                shardsMin:9, shardsMax:12, density:0.02, restitution:0.15, friction:0.3,
+                shardColor:'#e8e8e8', strokeColor:'#cfcfcf', points:65,
+                sound:{freqMin:1200,freqMax:1900,q:0.7,duration:0.25,decayPow:2,glassTing:false}
+            },
+            {
+                key:'cup', name:'Cup', img:'cup.png', radius:56, weight:22,
+                shardsMin:8, shardsMax:11, density:0.018, restitution:0.18, friction:0.3,
+                shardColor:'#c5c5c5', strokeColor:'#adadad', points:50,
+                sound:{freqMin:1500,freqMax:2300,q:0.8,duration:0.2,decayPow:2.2,glassTing:false}
+            },
+            {
+                key:'pot', name:'Pot', img:'pot.png', radius:80, weight:16,
+                shardsMin:11, shardsMax:15, density:0.028, restitution:0.1, friction:0.45,
+                shardColor:'#b5a094', strokeColor:'#94806f', points:90,
+                sound:{freqMin:450,freqMax:750,q:0.5,duration:0.35,decayPow:1.4,glassTing:false}
+            },
+            {
+                key:'vase', name:'Vase', img:'vase.png', radius:88, weight:12,
+                shardsMin:14, shardsMax:19, density:0.014, restitution:0.28, friction:0.2,
+                shardColor:'#525f77', strokeColor:'#3b465c', points:140,
+                sound:{freqMin:2600,freqMax:3800,q:1.2,duration:0.3,decayPow:1.15,glassTing:true}
+            }
+        ];
+        const TOTAL_WEIGHT=OBJECT_TYPES.reduce((s,t)=>s+t.weight,0);
+        function pickType(){
+            let r=Math.random()*TOTAL_WEIGHT;
+            for(const t of OBJECT_TYPES){
+                if(r<t.weight) return t;
+                r-=t.weight;
+            }
+            return OBJECT_TYPES[0];
+        }
+ 
+        
+        let score=0;
+        let combo=0;
+        let lastHitTime=0;
+        const COMBO_WINDOW=2600;
+        const scoreValueEl=document.getElementById('score-value');
+        const comboPanelEl=document.getElementById('combo-panel');
+        const comboValueEl=document.getElementById('combo-value');
+        const bannerEl=document.getElementById('name-banner-text');
+        const hintEl=document.getElementById('hint');
+        let bannerTimeout=null;
+ 
+        function registerHit(type, impactPoint){
+            const now=performance.now();
+            if(now-lastHitTime<COMBO_WINDOW){
+                combo=Math.min(combo+1,20);
+            } else {
+                combo=1;
+            }
+            lastHitTime=now;
+            const multiplier=Math.min(combo,10);
+            const gained=type.points*multiplier;
+            score+=gained;
+            scoreValueEl.textContent=score.toLocaleString();
+ 
+            if(combo>1){
+                comboPanelEl.classList.add('show');
+                comboValueEl.textContent='x'+combo;
+                comboPanelEl.classList.remove('pulse');
+                void comboPanelEl.offsetWidth;
+                comboPanelEl.classList.add('pulse');
+            } else {
+                comboPanelEl.classList.remove('show');
+            }
+ 
+            showScorePopup(gained, multiplier, impactPoint);
+            showBanner(type.name);
+ 
+            if(hintEl.style.opacity!=='0'){
+                hintEl.style.opacity='0';
+            }
+        }
+ 
+        function showBanner(name){
+            bannerEl.textContent=name+'!';
+            bannerEl.classList.add('show');
+            clearTimeout(bannerTimeout);
+            bannerTimeout=setTimeout(()=>bannerEl.classList.remove('show'),700);
+        }
+ 
+        function showScorePopup(gained, multiplier, point){
+            const el=document.createElement('div');
+            el.className='score-popup';
+            el.style.left=point.x+'px';
+            el.style.top=point.y+'px';
+            el.style.fontSize=(multiplier>1? 26:20)+'px';
+            el.textContent='+'+gained+(multiplier>1? '  x'+multiplier:'');
+            document.body.appendChild(el);
+            setTimeout(()=>el.remove(),900);
+        }
+ 
+        function spawnDust(point, color, count){
+            for(let i=0;i<count;i++){
+                const el=document.createElement('div');
+                el.className='dust';
+                const size=18+Math.random()*26;
+                el.style.width=size+'px';
+                el.style.height=size+'px';
+                const ox=(Math.random()-0.5)*70;
+                const oy=(Math.random()-0.5)*70;
+                el.style.left=(point.x+ox)+'px';
+                el.style.top=(point.y+oy)+'px';
+                el.style.background=`radial-gradient(circle, ${color} 0%, transparent 70%)`;
+                el.style.animationDelay=(Math.random()*0.08)+'s';
+                document.body.appendChild(el);
+                setTimeout(()=>el.remove(),750);
+            }
+        }
+ 
+    
+        const IMG_W=736, IMG_H=414;
+        const SLOTS=[
+            {x:19.85, yTop:22.95, w:35.9},  // left, top shelf
+            {x:79.90, yTop:22.95, w:35.8},  // right, top shelf
+            {x:19.85, yTop:41.30, w:35.9},  // left, middle shelf
+            {x:79.90, yTop:41.30, w:35.8},  // right, middle shelf
+            {x:19.85, yTop:60.14, w:35.9},  // left, lower shelf
+            {x:79.90, yTop:60.14, w:35.8},  // right, lower shelf
+            {x:49.90, yTop:79.23, w:36.4},  // bottom, center shelf
+        ];
+ 
+        
+        function bgMap(xPct,yPct){
+            const fx=xPct/100, fy=yPct/100;
+            const scale=Math.min(width/IMG_W, height/IMG_H);
+            const dispW=IMG_W*scale, dispH=IMG_H*scale;
+            const offX=(width-dispW)/2, offY=(height-dispH)/2;
+            return { x:offX+fx*dispW, y:offY+fy*dispH, scale };
+        }
+ 
+        function spawnInSlot(slot, forcedType){
+            const type=forcedType || pickType();
+            const pt=bgMap(slot.x, slot.yTop);
+            const shelfWidthPx=(slot.w/100)*IMG_W*pt.scale;
+            const r=Math.min(type.radius, Math.max(22, shelfWidthPx*0.30));
+            const cx=pt.x;
+            const cy=pt.y - r*0.85;
+ 
+            const body=Bodies.circle(cx,cy,r,{
+                isStatic:true,
+                render:{
+                    sprite:{
+                        texture:type.img,
+                        xScale:(r*2)/420,
+                        yScale:(r*2)/420
+                    }
+                }
+            });
+            body.isPlate=true;
+            body.plateRadius=r;
+            body.objType=type;
+            body.slotRef=slot;
+            World.add(engine.world,body);
+            slot.body=body;
+        }
+ 
+        function restockSlot(slot){
+            setTimeout(()=>spawnInSlot(slot), 700+Math.random()*500);
+        }
+ 
+        function repositionAllSlots(){
+            for(const slot of SLOTS){
+                const keepType=slot.body? slot.body.objType : null;
+                if(slot.body){
+                    World.remove(engine.world,slot.body);
+                    slot.body=null;
+                }
+                spawnInSlot(slot, keepType);
+            }
+        }
+ 
+        
+        const activeShards=[];
+        const SHARD_LIFESPAN=5200;
+        const SHARD_FADE_START=3800;
+ 
+        Events.on(engine,'afterUpdate',()=>{
+            const now=performance.now();
+            for(let i=activeShards.length-1;i>=0;i--){
+                const s=activeShards[i];
+                const age=now-s.spawnTime;
+                if(age>SHARD_LIFESPAN){
+                    World.remove(engine.world,s.body);
+                    activeShards.splice(i,1);
+                } else if(age>SHARD_FADE_START){
+                    s.body.render.opacity=1-(age-SHARD_FADE_START)/(SHARD_LIFESPAN-SHARD_FADE_START);
+                }
+            }
+        });
+ 
+        function shatter(plateBody, impactPoint, impactVelocity){
+            const type=plateBody.objType;
+            const cx=plateBody.position.x, cy=plateBody.position.y, r=plateBody.plateRadius;
+            const slot=plateBody.slotRef;
+ 
+            World.remove(engine.world,plateBody);
+            if(slot){ slot.body=null; restockSlot(slot); }
+ 
+            const numShards=type.shardsMin+Math.floor(Math.random()*(type.shardsMax-type.shardsMin+1));
+            const angles=[];
+            for(let i=0;i<numShards;i++){
+                angles.push((i/numShards)*Math.PI*2 + (Math.random()-0.5)*(Math.PI/numShards)*0.8);
+            }
+            for(let i=0;i<numShards;i++){
+                const a0=angles[i];
+                const a1=angles[(i+1)%numShards] + (i===numShards-1? Math.PI*2:0);
+ 
+                const innerJitterR=r*0.15*Math.random();
+                const innerAng=Math.random()*Math.PI*2;
+                const innerPoint={ x:cx+Math.cos(innerAng)*innerJitterR, y:cy+Math.sin(innerAng)*innerJitterR };
+                const steps=2;
+                const outerPoints=[];
+                for(let s=0;s<=steps;s++){
+                    const t=s/steps;
+                    const ang=a0+(a1-a0)*t;
+                    const rad=r*(0.92+Math.random()*0.08);
+                    outerPoints.push({x:cx+Math.cos(ang)*rad,y:cy+Math.sin(ang)*rad});
+                }
+                const worldVerts=[innerPoint,...outerPoints];
+                const avg=worldVerts.reduce((acc,p)=>({x:acc.x+p.x,y:acc.y+p.y}),{x:0,y:0});
+                avg.x/=worldVerts.length; avg.y/=worldVerts.length;
+                const localVerts=worldVerts.map(p=>({x:p.x-avg.x,y:p.y-avg.y}));
+                const shard=Bodies.fromVertices(avg.x,avg.y,[localVerts],{
+                    render:{ fillStyle:type.shardColor, strokeStyle:type.strokeColor, lineWidth:1, opacity:1 },
+                    friction:type.friction,
+                    restitution:type.restitution,
+                    density:type.density
+                },true);
+ 
+                if(!shard) continue;
+                World.add(engine.world,shard);
+                activeShards.push({body:shard, spawnTime:performance.now()});
+ 
+                const dir=Vector.normalise(Vector.sub(shard.position,impactPoint));
+                const baseForce=0.15+Math.random()*0.1;
+                const speedBonus=Math.min(0.35,Vector.magnitude(impactVelocity)*0.01);
+                const force=baseForce+speedBonus;
+                Body.applyForce(shard, shard.position, Vector.mult(dir, force));
+                Body.applyForce(shard, shard.position, {x:0,y:-force*0.4});
+                Body.setAngularVelocity(shard,(Math.random()-0.5)*0.8);
+            }
+ 
+            const strength=Math.min(1,Vector.magnitude(impactVelocity)/20);
+            playCrunch(type.sound, strength);
+            spawnDust(impactPoint, type.shardColor, 6+Math.floor(strength*6));
+            screenShake(strength);
+            registerHit(type, impactPoint);
+        }
+ 
+        function screenShake(strength){
+            const canvas=render.canvas;
+            let frames=6+Math.round(strength*8);
+            const mag=6+strength*14;
+            const orig=canvas.style.transform;
+            function step(){
+                if(frames--<=0){ canvas.style.transform=orig; return; }
+                const dx=(Math.random()-0.5)*mag;
+                const dy=(Math.random()-0.5)*mag;
+                canvas.style.transform=`translate(${dx}px, ${dy}px)`;
+                requestAnimationFrame(step);
+            }
+            step();
+        }
+ 
+        
+        let dragging=false;
+        let dragStartPos=null;
+        let trail=[];
+        const MIN_DRAG_DISTANCE=15;
+        const TRAIL_WINDOW=150;
+        const MIN_TRAIL_DT=20;
+ 
+        function getPos(e){
+            const t=e.touches? e.touches[0]:e;
+            return { x:t.clientX, y:t.clientY };
+        }
+ 
+        function pointerDown(e){
+            dragging=true;
+            const pos=getPos(e);
+            dragStartPos=pos;
+            trail=[{...pos, t:performance.now()}];
+        }
+ 
+        function pointerMove(e){
+            if(!dragging) return;
+            const pos=getPos(e);
+            const now=performance.now();
+ 
+            trail.push({...pos, t:now});
+            while(trail.length>1 && now-trail[0].t>TRAIL_WINDOW) trail.shift();
+ 
+            const oldest=trail[0];
+            const dt=now-oldest.t;
+            if(dt<MIN_TRAIL_DT) return;
+ 
+            const vel={ x:(pos.x-oldest.x)/dt*16, y:(pos.y-oldest.y)/dt*16 };
+            const speed=Vector.magnitude(vel);
+            const totalDragDist=Vector.magnitude(Vector.sub(pos,dragStartPos));
+            if(speed<=2 || totalDragDist<=MIN_DRAG_DISTANCE) return;
+ 
+            for(const slot of SLOTS){
+                const body=slot.body;
+                if(!body) continue;
+                const d=Vector.magnitude(Vector.sub(pos,body.position));
+                if(d<body.plateRadius){
+                    shatter(body,pos,vel);
+                }
+            }
+        }
+        function pointerUp(){ dragging=false; trail=[]; }
+ 
+        window.addEventListener('mousedown',pointerDown);
+        window.addEventListener('mousemove',pointerMove);
+        window.addEventListener('mouseup',pointerUp);
+        window.addEventListener('touchstart',pointerDown,{passive:true});
+        window.addEventListener('touchmove',pointerMove,{passive:true});
+        window.addEventListener('touchend',pointerUp);
+        window.addEventListener('mousedown',()=>{ if(audioCtx.state==='suspended') audioCtx.resume(); },{once:true});
+        window.addEventListener('touchstart',()=>{ if(audioCtx.state==='suspended') audioCtx.resume(); },{once:true});
+ 
+        SLOTS.forEach(slot=>spawnInSlot(slot));
+        </script>
+    </body>
+</html>
+ 
