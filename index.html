@@ -220,14 +220,13 @@
       }
     }
 
-    const CATALOG = [
+        const CATALOG = [
       { key: 'plate', name: 'Plate', img: 'plate.png', radius: 92, weight: 28, shardsMin: 10, shardsMax: 14, density: 0.02, restitution: 0.15, friction: 0.3, shardColor: '#dfe0de', strokeColor: '#c7c7c4', points: 75, sound: { freqMin: 1300, freqMax: 2100, q: 0.7, duration: 0.25, decayPow: 2, glassTing: false } },
       { key: 'bowl', name: 'Bowl', img: 'bowl.png', radius: 70, weight: 22, shardsMin: 9, shardsMax: 12, density: 0.02, restitution: 0.15, friction: 0.3, shardColor: '#e8e8e8', strokeColor: '#cfcfcf', points: 65, sound: { freqMin: 1200, freqMax: 1900, q: 0.7, duration: 0.25, decayPow: 2, glassTing: false } },
       { key: 'cup', name: 'Cup', img: 'cup.png', radius: 56, weight: 22, shardsMin: 8, shardsMax: 11, density: 0.018, restitution: 0.18, friction: 0.3, shardColor: '#c5c5c5', strokeColor: '#adadad', points: 50, sound: { freqMin: 1500, freqMax: 2300, q: 0.8, duration: 0.2, decayPow: 2.2, glassTing: false } },
       { key: 'pot', name: 'Pot', img: 'pot.png', radius: 80, weight: 16, shardsMin: 11, shardsMax: 15, density: 0.028, restitution: 0.1, friction: 0.45, shardColor: '#b5a094', strokeColor: '#94806f', points: 90, sound: { freqMin: 450, freqMax: 750, q: 0.5, duration: 0.35, decayPow: 1.4, glassTing: false } },
       { key: 'vase', name: 'Vase', img: 'vase.png', radius: 88, weight: 12, shardsMin: 14, shardsMax: 19, density: 0.014, restitution: 0.28, friction: 0.2, shardColor: '#525f77', strokeColor: '#3b465c', points: 140, sound: { freqMin: 2600, freqMax: 3800, q: 1.2, duration: 0.3, decayPow: 1.15, glassTing: true } }
     ];
-
     const AGGREGATE_WEIGHT = CATALOG.reduce((sum, item) => sum + item.weight, 0);
     function getRandomEntity() {
       let roll = Math.random() * AGGREGATE_WEIGHT;
