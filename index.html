@@ -341,14 +341,23 @@ const imageCache = {};
       const coords = projectCoords(shelf.x, shelf.yTop);
       const span = (shelf.w / 100) * 736 * coords.scale;
       const radius = Math.min(type.radius, Math.max(22, span * 0.30));
-      const target = M.Bodies.circle(coords.x, coords.y - radius * 0.85, radius, { isStatic: true });
-      
       const spriteScale = (radius * 2) / 420;
-      target.render.sprite = {
-  texture: new URL(type.img, document.baseURI).href,
-  xScale: spriteScale,
-  yScale: spriteScale
-};
+
+const target = M.Bodies.circle(
+  coords.x,
+  coords.y - radius * 0.85,
+  radius,
+  {
+    isStatic: true,
+    render: {
+      sprite: {
+        texture: new URL(type.img, document.baseURI).href,
+        xScale: spriteScale,
+        yScale: spriteScale
+      }
+    }
+  }
+);
       target.isPlate = true;
       target.plateRadius = radius;
       target.objType = type;
