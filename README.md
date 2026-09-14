@@ -14,7 +14,7 @@ git clone https://github.com/akshara200829-lgtm/Breakitt.git
 
 cd Breakitt
 
-npx serve .
+npx serve  .
 
 
 Features:
