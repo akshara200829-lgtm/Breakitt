@@ -19,7 +19,7 @@ npx serve  .
 
 Features:
 
-- Swipe through an item ; Drag through an item on shelf to break it
+- Drag through an item on shelf to break it
 - Every item type has its own sound, point value, and rarity (rarer stuff = more points)
 - Chain smashes fast enough and you build a combo multiplier (up to ×10)
 - Broken items respawn after a short delay so the shelves never stay empty
@@ -29,11 +29,10 @@ Breakitt uses Matter.js for the physics simulation — when you swipe through an
 
 How to Play:
  
-1. Load the page — shelves fill up with random items
+1. Load the page:shelves fill up with random items
 2. Swipe your mouse or finger through an item to smash it
 3. Keep hitting things within 3 seconds of each other to stack your combo
-4. Watch your score climb, let broken items respawn, and keep playing
-
+   
 Tech Stack:
  
 - **Matter.js** — physics engine (gravity, collisions, rigid bodies)
